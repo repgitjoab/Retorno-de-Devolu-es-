@@ -285,21 +285,35 @@ async function loadData(){
 }
 
 /* ============ RENDER ============ */
-function diffDays(dateStr){
+function normalizeDate(dateStr){
   if(!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
+  const s = String(dateStr);
+  // aceita "2026-06-02" ou "2026-06-02T03:00:00.000Z" e sempre extrai so a data
+  const match = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+function diffDays(dateStr){
+  const clean = normalizeDate(dateStr);
+  if(!clean) return null;
+  const d = new Date(clean + 'T00:00:00');
+  if(isNaN(d.getTime())) return null;
   const today = new Date(); today.setHours(0,0,0,0);
   return Math.floor((today - d) / 86400000);
 }
 
 function fmtDate(dateStr){
-  if(!dateStr) return '–';
-  const d = new Date(dateStr + 'T00:00:00');
+  const clean = normalizeDate(dateStr);
+  if(!clean) return '–';
+  const d = new Date(clean + 'T00:00:00');
+  if(isNaN(d.getTime())) return '–';
   return d.toLocaleDateString('pt-BR');
 }
 
 function addDays(dateStr, n){
-  const d = new Date(dateStr + 'T00:00:00');
+  const clean = normalizeDate(dateStr) || new Date().toISOString().slice(0,10);
+  const d = new Date(clean + 'T00:00:00');
+  if(isNaN(d.getTime())) return new Date().toISOString().slice(0,10);
   d.setDate(d.getDate() + n);
   return d.toISOString().slice(0,10);
 }
