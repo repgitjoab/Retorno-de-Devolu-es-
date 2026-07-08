@@ -335,6 +335,20 @@ function truncateDanfe(danfe){
   return s.length > 14 ? s.slice(0,6) + '…' + s.slice(-6) : s;
 }
 
+// monta o texto do tooltip com o histórico completo (ou o detalhe simples, se não tiver)
+function formatHistoricoTooltip(rec){
+  const bruto = rec['HISTORICO SSW'];
+  if(bruto){
+    try{
+      const eventos = JSON.parse(bruto);
+      if(Array.isArray(eventos) && eventos.length){
+        return eventos.map(ev => `${ev.dataHora} · ${ev.unidade} — ${ev.situacao}`).join('\n');
+      }
+    }catch(err){ /* ignora e cai no fallback abaixo */ }
+  }
+  return rec['DETALHE SSW'] || 'Sem detalhes ainda';
+}
+
 /* ============ RENDER: RETORNO ============ */
 function computeState(rec){
   const dias = diffDays(rec['DATA RETORNO']);
@@ -388,7 +402,7 @@ function renderRetorno(){
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </div>
       </td>
-      <td><span class="badge ${state.key}" title="${escapeHtml(rec['DETALHE SSW'] || 'Sem detalhes ainda')}">${state.label}</span></td>
+      <td><span class="badge ${state.key}" title="${escapeHtml(formatHistoricoTooltip(rec))}">${state.label}</span></td>
       <td>
         <div class="actions">
           <button class="btn-sm primary" onclick="trackSSW('${rec['DANFE'] || ''}')">Rastrear</button>
@@ -440,7 +454,7 @@ function renderVenda(){
       <td>${escapeHtml(rec['Vendedor'] ?? '–')}</td>
       <td>${escapeHtml(rec['Cliente'] ?? '–')}</td>
       <td>${fmtDate(rec['Emissão'])}</td>
-      <td><span class="badge ${state.key}" title="${escapeHtml(rec['DETALHE SSW'] || 'Sem detalhes ainda')}">${state.label}</span></td>
+      <td><span class="badge ${state.key}" title="${escapeHtml(formatHistoricoTooltip(rec))}">${state.label}</span></td>
       <td>${fmtDate(rec['ÚLTIMA VERIFICAÇÃO'])}</td>
       <td>
         <div class="actions">
@@ -537,6 +551,7 @@ async function verifyAllPending(tipo){
         fields['STATUS SSW'] = 'Localizado';
         fields['DETALHE SSW'] = json.situacao + ' — ' + json.detalhe;
         if(json.previsao) fields['PREVISÃO SSW'] = json.previsao;
+        if(json.historico) fields['HISTORICO SSW'] = JSON.stringify(json.historico);
         dataEntrega = json.dataHora || null;
         foundCount++;
       } else {
@@ -561,12 +576,14 @@ let currentRow = null;
 let currentTipoModal = 'retorno';
 let currentDetalhe = '';
 let currentDataEntrega = null;
+let currentHistorico = null;
 
 function openStatusModal(row, tipo){
   currentRow = row;
   currentTipoModal = tipo;
   currentDetalhe = '';
   currentDataEntrega = null;
+  currentHistorico = null;
   document.getElementById('s_status').value = 'Não localizado';
   document.getElementById('s_previsao').value = '';
   document.getElementById('s_previsaoField').style.display = 'none';
@@ -604,6 +621,7 @@ async function autoCheckSSW(){
       document.getElementById('s_status').value = 'Localizado';
       currentDetalhe = json.situacao + ' — ' + json.detalhe;
       currentDataEntrega = json.dataHora || null;
+      currentHistorico = json.historico || null;
       resultBox.innerHTML = `<b style="color:var(--text)">${escapeHtml(json.situacao)}</b><br>${escapeHtml(json.detalhe)}<br><span style="color:var(--text-dim)">${escapeHtml(json.unidade)} · ${escapeHtml(json.dataHora)}</span>`;
       document.getElementById('s_previsaoField').style.display = 'block';
       if(json.previsao) document.getElementById('s_previsao').value = json.previsao;
@@ -624,6 +642,7 @@ async function saveStatus(){
   const fields = { 'STATUS SSW': status, 'ÚLTIMA VERIFICAÇÃO': today };
   if(status === 'Localizado' && previsao) fields['PREVISÃO SSW'] = previsao;
   if(currentDetalhe) fields['DETALHE SSW'] = currentDetalhe;
+  if(currentHistorico) fields['HISTORICO SSW'] = JSON.stringify(currentHistorico);
 
   try{
     const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'update', tipo: currentTipoModal, row: currentRow, fields, dataEntrega: currentDataEntrega }) });
