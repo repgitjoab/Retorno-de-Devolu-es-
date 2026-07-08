@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retorno de Devoluções · Jorlan GO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12151a;
+    --panel: #1b1f27;
+    --panel-2: #232833;
+    --line: #2e3440;
+    --text: #e8eaed;
+    --text-dim: #9aa3b2;
+    --accent: #0fb5ba;      /* teal - localizado/rastreado */
+    --warn: #e8a33d;        /* âmbar - aguardando */
+    --danger: #e6543f;      /* vermelho - alerta / atrasado */
+    --ok-bg: rgba(15,181,186,0.12);
+    --warn-bg: rgba(232,163,61,0.12);
+    --danger-bg: rgba(230,84,63,0.14);
+    --mono: 'JetBrains Mono', monospace;
+    --grotesk: 'Space Grotesk', sans-serif;
+    --sans: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:28px 32px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:16px;
+  }
+  header h1{
+    font-family:var(--grotesk); font-size:22px; font-weight:700; margin:0 0 4px;
+    letter-spacing:-0.01em;
+  }
+  header .sub{ color:var(--text-dim); font-size:13px; }
+  .brand-eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.12em; color:var(--accent);
+    text-transform:uppercase; margin-bottom:6px;
+  }
+  #addBtn{
+    background:var(--accent); color:#08191a; border:none; font-family:var(--grotesk);
+    font-weight:600; font-size:14px; padding:10px 18px; border-radius:8px; cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  #addBtn:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(15,181,186,0.35); }
+
+  .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:24px 32px; }
+  .stat{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px;
+  }
+  .stat .label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; font-family:var(--mono); }
+  .stat .value{ font-family:var(--grotesk); font-size:28px; font-weight:700; margin-top:6px; }
+  .stat.alert .value{ color:var(--danger); }
+  .stat.wait .value{ color:var(--warn); }
+  .stat.done .value{ color:var(--accent); }
+
+  main{ padding:0 32px 48px; }
+  .table-wrap{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  thead th{
+    text-align:left; padding:12px 14px; font-family:var(--mono); font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim);
+    border-bottom:1px solid var(--line); background:var(--panel-2); white-space:nowrap;
+  }
+  tbody td{ padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:rgba(255,255,255,0.02); }
+  .num{ font-family:var(--mono); }
+  .danfe{
+    font-family:var(--mono); font-size:11px; color:var(--text-dim); cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .danfe:hover{ color:var(--text); }
+  .danfe svg{ width:13px; height:13px; opacity:.6; flex-shrink:0; }
+
+  /* corredor de rastreio — barra de 0 a 5 dias */
+  .corridor{ width:120px; }
+  .corridor-track{
+    position:relative; height:6px; background:var(--panel-2); border-radius:3px; overflow:visible;
+    border:1px solid var(--line);
+  }
+  .corridor-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:3px; }
+  .corridor-label{ font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px; }
+
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px;
+    font-size:12px; font-weight:600; font-family:var(--sans); white-space:nowrap;
+  }
+  .badge.wait{ background:var(--warn-bg); color:var(--warn); }
+  .badge.alert{ background:var(--danger-bg); color:var(--danger); }
+  .badge.ok{ background:var(--ok-bg); color:var(--accent); }
+  .badge.not-found{ background:var(--danger-bg); color:var(--danger); }
+
+  .actions{ display:flex; gap:6px; }
+  .btn-sm{
+    border:1px solid var(--line); background:var(--panel-2); color:var(--text);
+    font-size:12px; padding:6px 10px; border-radius:7px; cursor:pointer; font-family:var(--sans);
+    display:flex; align-items:center; gap:5px; white-space:nowrap;
+  }
+  .btn-sm:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn-sm.primary{ background:var(--accent); color:#08191a; border-color:var(--accent); font-weight:600; }
+
+  .empty{ padding:60px 20px; text-align:center; color:var(--text-dim); }
+  .empty b{ color:var(--text); }
+
+  /* modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(8,10,14,0.7); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; width:100%; max-width:440px;
+    padding:24px; max-height:88vh; overflow-y:auto;
+  }
+  .modal h2{ font-family:var(--grotesk); font-size:17px; margin:0 0 18px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em; }
+  .field input, .field select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:9px 11px; border-radius:8px; font-size:13.5px; font-family:var(--sans);
+  }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--accent); }
+  .modal-actions{ display:flex; gap:8px; margin-top:20px; }
+  .modal-actions button{ flex:1; padding:10px; border-radius:8px; font-weight:600; cursor:pointer; font-family:var(--grotesk); font-size:14px; border:none; }
+  .btn-cancel{ background:var(--panel-2); color:var(--text-dim); border:1px solid var(--line) !important; }
+  .btn-save{ background:var(--accent); color:#08191a; }
+
+  #toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text); padding:12px 20px;
+    border-radius:9px; font-size:13.5px; opacity:0; transition:all .25s ease; pointer-events:none; z-index:100;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .config-banner{
+    margin:16px 32px 0; padding:12px 16px; background:var(--warn-bg); border:1px solid rgba(232,163,61,.4);
+    border-radius:9px; font-size:13px; color:var(--warn); display:none;
+  }
+  .config-banner.show{ display:block; }
+
+  @media(max-width:900px){
+    .stats{ grid-template-columns:repeat(2,1fr); }
+    header{ padding:20px; } main{ padding:0 16px 32px; } .stats{ padding:16px; }
+    .table-wrap{ overflow-x:auto; }
+    table{ min-width:900px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand-eyebrow">Jorlan GO · Pós-venda</div>
+    <h1>Retorno de Devoluções</h1>
+    <div class="sub">Acompanhamento de notas de retorno e rastreamento de coleta pela transportadora</div>
+  </div>
+  <button id="addBtn">+ Nova nota de retorno</button>
+</header>
+
+<div class="config-banner" id="configBanner">
+  ⚠️ Configure a URL do Apps Script na constante <code>WEB_APP_URL</code> no topo do arquivo para conectar à planilha.
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Total de notas</div>
+    <div class="value" id="statTotal">–</div>
+  </div>
+  <div class="stat alert">
+    <div class="label">🚨 Alerta · ligar transportadora</div>
+    <div class="value" id="statAlert">–</div>
+  </div>
+  <div class="stat wait">
+    <div class="label">⏳ Aguardando (dentro do prazo)</div>
+    <div class="value" id="statWait">–</div>
+  </div>
+  <div class="stat done">
+    <div class="label">✅ Localizadas no SSW</div>
+    <div class="value" id="statDone">–</div>
+  </div>
+</div>
+
+<main>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>NF Venda</th>
+          <th>Nota Retorno</th>
+          <th>Data Retorno</th>
+          <th>Prazo SSW (5 dias)</th>
+          <th>Previsão Chegada</th>
+          <th>DANFE</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="emptyState" style="display:none;">
+      Nenhuma nota de retorno cadastrada ainda.<br><b>Clique em "Nova nota de retorno" para começar.</b>
+    </div>
+  </div>
+</main>
+
+<!-- Modal: nova nota -->
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <h2>Nova nota de retorno</h2>
+    <div class="field"><label>NF de Venda</label><input type="text" id="f_nfVenda" placeholder="Ex: 101010"></div>
+    <div class="field"><label>Data da Venda</label><input type="date" id="f_dataVenda"></div>
+    <div class="field"><label>Nota de Retorno</label><input type="text" id="f_notaRetorno" placeholder="Ex: 1271537"></div>
+    <div class="field"><label>Data do Retorno</label><input type="date" id="f_dataRetorno"></div>
+    <div class="field"><label>Chave DANFE (44 dígitos)</label><input type="text" id="f_danfe" placeholder="52260601542240000857550550012715371959086330" maxlength="44"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveNewRecord()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: atualizar status SSW -->
+<div class="overlay" id="statusOverlay">
+  <div class="modal">
+    <h2>Atualizar verificação SSW</h2>
+    <div class="field">
+      <label>O que apareceu na consulta?</label>
+      <select id="s_status">
+        <option value="Não localizado">Não localizado (ainda não entrou na transportadora)</option>
+        <option value="Localizado">Localizado (transportadora já tem a mercadoria)</option>
+      </select>
+    </div>
+    <div class="field" id="s_previsaoField">
+      <label>Previsão de entrega informada pelo SSW (opcional)</label>
+      <input type="date" id="s_previsao">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeStatusModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveStatus()">Salvar verificação</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ CONFIGURAÇÃO ============ */
+// Cole aqui a URL do Apps Script implantado como "App da Web" (Code.gs fornecido)
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxKs7D7ieHUFFyXPbAL3zxpR1Re2ICsCU6HytJmiG7Nz5tdV_7YGiFX08laJaW9HWp_/exec";
+const SSW_URL = "https://ssw.inf.br/2/rastreamento_danfe";
+const PRAZO_ALERTA_DIAS = 5;
+const PRAZO_PADRAO_CHEGADA = 15;
+
+let records = [];
+
+/* ============ INIT ============ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!WEB_APP_URL || WEB_APP_URL.indexOf('COLE_AQUI') > -1) {
+    document.getElementById('configBanner').classList.add('show');
+  } else {
+    loadData();
+  }
+  document.getElementById('addBtn').addEventListener('click', openAddModal);
+  document.getElementById('s_status').addEventListener('change', (e) => {
+    document.getElementById('s_previsaoField').style.display = e.target.value === 'Localizado' ? 'block' : 'none';
+  });
+});
+
+async function loadData(){
+  try{
+    const res = await fetch(WEB_APP_URL);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || 'Erro desconhecido');
+    records = json.data;
+    render();
+  }catch(err){
+    showToast('Erro ao carregar planilha: ' + err.message);
+  }
+}
+
+/* ============ RENDER ============ */
+function diffDays(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.floor((today - d) / 86400000);
+}
+
+function fmtDate(dateStr){
+  if(!dateStr) return '–';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('pt-BR');
+}
+
+function addDays(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+function computeState(rec){
+  const dias = diffDays(rec['DATA RETORNO']);
+  const status = rec['STATUS SSW'] || '';
+  if(status === 'Localizado'){
+    return { key:'ok', label:'✅ Localizado', dias };
+  }
+  if(dias !== null && dias >= PRAZO_ALERTA_DIAS){
+    return { key:'alert', label:'🚨 Ligar transportadora', dias };
+  }
+  return { key:'wait', label:'⏳ Aguardando', dias };
+}
+
+function render(){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  document.getElementById('emptyState').style.display = records.length ? 'none' : 'block';
+
+  let cAlert=0, cWait=0, cDone=0;
+
+  records.forEach(rec => {
+    const state = computeState(rec);
+    if(state.key==='alert') cAlert++;
+    else if(state.key==='ok') cDone++;
+    else cWait++;
+
+    const previsao = rec['PREVISÃO SSW'] || addDays(rec['DATA RETORNO'] || new Date().toISOString().slice(0,10), PRAZO_PADRAO_CHEGADA);
+    const dias = state.dias ?? 0;
+    const pct = Math.min(100, Math.max(0, (dias / PRAZO_ALERTA_DIAS) * 100));
+    const barColor = state.key==='alert' ? 'var(--danger)' : state.key==='ok' ? 'var(--accent)' : 'var(--warn)';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${escapeHtml(rec['NFs de Venda'] ?? '')}</td>
+      <td class="num">${escapeHtml(rec['Nota de retorno'] ?? '')}</td>
+      <td>${fmtDate(rec['DATA RETORNO'])}</td>
+      <td class="corridor">
+        <div class="corridor-track">
+          <div class="corridor-fill" style="width:${pct}%; background:${barColor};"></div>
+        </div>
+        <div class="corridor-label">dia ${Math.max(0,dias)} de ${PRAZO_ALERTA_DIAS}</div>
+      </td>
+      <td>${fmtDate(previsao)}</td>
+      <td>
+        <div class="danfe" onclick="copyDanfe('${rec['DANFE'] || ''}')" title="Clique para copiar">
+          ${truncateDanfe(rec['DANFE'])}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </div>
+      </td>
+      <td><span class="badge ${state.key}">${state.label}</span></td>
+      <td>
+        <div class="actions">
+          <button class="btn-sm primary" onclick="trackSSW('${rec['DANFE'] || ''}')">Rastrear</button>
+          <button class="btn-sm" onclick="openStatusModal(${rec._row})">Verificar</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('statTotal').textContent = records.length;
+  document.getElementById('statAlert').textContent = cAlert;
+  document.getElementById('statWait').textContent = cWait;
+  document.getElementById('statDone').textContent = cDone;
+}
+
+function truncateDanfe(danfe){
+  if(!danfe) return '—';
+  const s = String(danfe);
+  return s.length > 14 ? s.slice(0,6) + '…' + s.slice(-6) : s;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============ RASTREAR NO SSW ============ */
+function copyDanfe(danfe){
+  if(!danfe) return;
+  navigator.clipboard.writeText(danfe).then(() => showToast('Chave DANFE copiada ✓'));
+}
+
+function trackSSW(danfe){
+  if(danfe){
+    navigator.clipboard.writeText(danfe).then(() => {
+      showToast('DANFE copiada — cole no site SSW (Ctrl+V)');
+    });
+  }
+  window.open(SSW_URL, '_blank');
+}
+
+/* ============ MODAL: NOVA NOTA ============ */
+function openAddModal(){
+  ['f_nfVenda','f_dataVenda','f_notaRetorno','f_dataRetorno','f_danfe'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('addOverlay').classList.add('open');
+}
+function closeAddModal(){
+  document.getElementById('addOverlay').classList.remove('open');
+}
+
+async function saveNewRecord(){
+  const nfVenda = document.getElementById('f_nfVenda').value.trim();
+  const dataVenda = document.getElementById('f_dataVenda').value;
+  const notaRetorno = document.getElementById('f_notaRetorno').value.trim();
+  const dataRetorno = document.getElementById('f_dataRetorno').value;
+  const danfe = document.getElementById('f_danfe').value.trim();
+
+  if(!nfVenda || !notaRetorno || !dataRetorno){
+    showToast('Preencha ao menos NF de Venda, Nota de Retorno e Data de Retorno');
+    return;
+  }
+
+  const fields = {
+    'NFs de Venda': nfVenda,
+    'DATA VENDA': dataVenda,
+    'Nota de retorno': notaRetorno,
+    'DATA RETORNO': dataRetorno,
+    'DANFE': danfe,
+    'STATUS SSW': 'Não verificado'
+  };
+
+  try{
+    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'add', fields }) });
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error);
+    showToast('Nota de retorno salva ✓');
+    closeAddModal();
+    loadData();
+  }catch(err){
+    showToast('Erro ao salvar: ' + err.message);
+  }
+}
+
+/* ============ MODAL: VERIFICAR STATUS ============ */
+let currentRow = null;
+function openStatusModal(row){
+  currentRow = row;
+  document.getElementById('s_status').value = 'Não localizado';
+  document.getElementById('s_previsao').value = '';
+  document.getElementById('s_previsaoField').style.display = 'none';
+  document.getElementById('statusOverlay').classList.add('open');
+}
+function closeStatusModal(){
+  document.getElementById('statusOverlay').classList.remove('open');
+}
+
+async function saveStatus(){
+  const status = document.getElementById('s_status').value;
+  const previsao = document.getElementById('s_previsao').value;
+  const today = new Date().toISOString().slice(0,10);
+
+  const fields = {
+    'STATUS SSW': status,
+    'ÚLTIMA VERIFICAÇÃO': today
+  };
+  if(status === 'Localizado' && previsao){
+    fields['PREVISÃO SSW'] = previsao;
+  }
+
+  try{
+    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'update', row: currentRow, fields }) });
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error);
+    showToast('Verificação atualizada ✓');
+    closeStatusModal();
+    loadData();
+  }catch(err){
+    showToast('Erro ao atualizar: ' + err.message);
+  }
+}
+
+/* ============ TOAST ============ */
+let toastTimer;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>
