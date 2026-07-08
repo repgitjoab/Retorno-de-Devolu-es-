@@ -229,6 +229,10 @@
 <div class="overlay" id="statusOverlay">
   <div class="modal">
     <h2>Atualizar verificação SSW</h2>
+    <button class="btn-sm primary" style="width:100%; justify-content:center; padding:10px; margin-bottom:16px;" onclick="autoCheckSSW()" id="autoCheckBtn">
+      🔎 Consultar automaticamente no SSW
+    </button>
+    <div id="autoCheckResult" style="display:none; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:12.5px; color:var(--text-dim);"></div>
     <div class="field">
       <label>O que apareceu na consulta?</label>
       <select id="s_status">
@@ -452,15 +456,59 @@ async function saveNewRecord(){
 
 /* ============ MODAL: VERIFICAR STATUS ============ */
 let currentRow = null;
+let currentDetalhe = '';
 function openStatusModal(row){
   currentRow = row;
+  currentDetalhe = '';
   document.getElementById('s_status').value = 'Não localizado';
   document.getElementById('s_previsao').value = '';
   document.getElementById('s_previsaoField').style.display = 'none';
+  document.getElementById('autoCheckResult').style.display = 'none';
+  document.getElementById('autoCheckBtn').textContent = '🔎 Consultar automaticamente no SSW';
   document.getElementById('statusOverlay').classList.add('open');
 }
 function closeStatusModal(){
   document.getElementById('statusOverlay').classList.remove('open');
+}
+
+async function autoCheckSSW(){
+  const rec = records.find(r => r._row === currentRow);
+  if(!rec){ showToast('Não achei os dados dessa nota'); return; }
+  const nr = rec['Nota de retorno'];
+  const btn = document.getElementById('autoCheckBtn');
+  btn.textContent = 'Consultando...';
+  btn.disabled = true;
+
+  try{
+    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'checkSSW', nr }) });
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error);
+
+    const resultBox = document.getElementById('autoCheckResult');
+    resultBox.style.display = 'block';
+
+    if(!json.found){
+      document.getElementById('s_status').value = 'Não localizado';
+      document.getElementById('s_previsaoField').style.display = 'none';
+      resultBox.innerHTML = '⚠️ Nenhum registro encontrado no SSW ainda para esta nota.';
+      currentDetalhe = '';
+    } else {
+      document.getElementById('s_status').value = 'Localizado';
+      currentDetalhe = json.situacao + ' — ' + json.detalhe;
+      resultBox.innerHTML = `<b style="color:var(--text)">${escapeHtml(json.situacao)}</b><br>${escapeHtml(json.detalhe)}<br><span style="color:var(--text-dim)">${escapeHtml(json.unidade)} · ${escapeHtml(json.dataHora)}</span>`;
+      if(json.previsao){
+        document.getElementById('s_previsaoField').style.display = 'block';
+        document.getElementById('s_previsao').value = json.previsao;
+      } else {
+        document.getElementById('s_previsaoField').style.display = 'block';
+      }
+    }
+  }catch(err){
+    showToast('Erro ao consultar SSW: ' + err.message);
+  }finally{
+    btn.textContent = '🔎 Consultar novamente';
+    btn.disabled = false;
+  }
 }
 
 async function saveStatus(){
@@ -474,6 +522,9 @@ async function saveStatus(){
   };
   if(status === 'Localizado' && previsao){
     fields['PREVISÃO SSW'] = previsao;
+  }
+  if(currentDetalhe){
+    fields['DETALHE SSW'] = currentDetalhe;
   }
 
   try{
