@@ -39,14 +39,14 @@
   }
   .tab-btn.active{ color:var(--accent); border-bottom-color:var(--accent); }
 
-  #addBtn, #addBtnVenda, #checkAllBtn, #checkAllBtnVenda{
+  #addBtn, #addBtnVenda, #checkAllBtn, #checkAllBtnVenda, #sendEmailBtn{
     font-family:var(--grotesk); font-weight:600; font-size:14px; padding:10px 18px; border-radius:8px; cursor:pointer;
   }
   #addBtn, #addBtnVenda{ background:var(--accent); color:#08191a; border:none; transition:transform .12s ease, box-shadow .12s ease; }
   #addBtn:hover, #addBtnVenda:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(15,181,186,0.35); }
-  #checkAllBtn, #checkAllBtnVenda{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+  #checkAllBtn, #checkAllBtnVenda, #sendEmailBtn{ background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
 
-  .stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:24px 32px; }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:14px; padding:24px 32px; }
   .stat{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
   .stat .label{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; font-family:var(--mono); }
   .stat .value{ font-family:var(--grotesk); font-size:28px; font-weight:700; margin-top:6px; }
@@ -124,6 +124,7 @@
       <div class="sub" id="pageSub">Acompanhamento de notas de retorno e rastreamento de coleta pela transportadora</div>
     </div>
     <div style="display:flex; gap:10px;">
+      <button id="sendEmailBtn">📧 Disparar e-mails pendentes</button>
       <button id="checkAllBtn" class="hidden">🔄 Verificar todas pendentes</button>
       <button id="checkAllBtnVenda" class="hidden">🔄 Verificar todas pendentes</button>
       <button id="addBtn" class="hidden">+ Nova nota de retorno</button>
@@ -147,6 +148,7 @@
     <div class="stat alert"><div class="label">🚨 Alerta · ligar transportadora</div><div class="value" id="statAlert">–</div></div>
     <div class="stat wait"><div class="label">⏳ Aguardando (dentro do prazo)</div><div class="value" id="statWait">–</div></div>
     <div class="stat done"><div class="label">✅ Localizadas no SSW</div><div class="value" id="statDone">–</div></div>
+    <div class="stat"><div class="label">📧 Aguardando envio de e-mail</div><div class="value" id="statPendingEmail">–</div></div>
   </div>
   <main>
     <div class="table-wrap">
@@ -173,6 +175,7 @@
     <div class="stat wait"><div class="label">⏳ Aguardando SSW</div><div class="value" id="statWaitV">–</div></div>
     <div class="stat done"><div class="label">✅ Localizadas / entregues</div><div class="value" id="statDoneV">–</div></div>
     <div class="stat"><div class="label">📧 E-mails enviados</div><div class="value" id="statEmailV">–</div></div>
+    <div class="stat"><div class="label">📧 Aguardando envio de e-mail</div><div class="value" id="statPendingEmailV">–</div></div>
   </div>
   <main>
     <div class="table-wrap">
@@ -280,6 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('addBtn').addEventListener('click', openAddModal);
   document.getElementById('checkAllBtn').addEventListener('click', () => verifyAllPending('retorno'));
   document.getElementById('checkAllBtnVenda').addEventListener('click', () => verifyAllPending('venda'));
+  document.getElementById('sendEmailBtn').addEventListener('click', dispararEmailPendentes);
   document.getElementById('s_status').addEventListener('change', (e) => {
     document.getElementById('s_previsaoField').style.display = e.target.value === 'Localizado' ? 'block' : 'none';
   });
@@ -373,13 +377,17 @@ function renderRetorno(){
   tbody.innerHTML = '';
   document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
 
-  let cAlert=0, cWait=0, cDone=0;
+  let cAlert=0, cWait=0, cDone=0, cPendingEmail=0;
 
   list.forEach(rec => {
     const state = computeState(rec);
     if(state.key==='alert') cAlert++;
     else if(state.key==='ok') cDone++;
     else cWait++;
+
+    if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
+      cPendingEmail++;
+    }
 
     const previsao = rec['PREVISÃO SSW'] || addDays(rec['DATA RETORNO'] || new Date().toISOString().slice(0,10), PRAZO_PADRAO_CHEGADA);
     const dias = state.dias ?? 0;
@@ -417,6 +425,7 @@ function renderRetorno(){
   document.getElementById('statAlert').textContent = cAlert;
   document.getElementById('statWait').textContent = cWait;
   document.getElementById('statDone').textContent = cDone;
+  document.getElementById('statPendingEmail').textContent = cPendingEmail;
 }
 
 /* ============ RENDER: VENDA ============ */
@@ -441,12 +450,15 @@ function renderVenda(){
   tbody.innerHTML = '';
   document.getElementById('emptyStateVenda').style.display = list.length ? 'none' : 'block';
 
-  let cWait=0, cDone=0, cEmail=0;
+  let cWait=0, cDone=0, cEmail=0, cPendingEmail=0;
 
   list.forEach(rec => {
     const state = computeStateVenda(rec);
     if(state.key==='ok') cDone++; else cWait++;
     if(rec['EMAIL ENVIADO'] === 'S') cEmail++;
+    if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
+      cPendingEmail++;
+    }
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -469,6 +481,7 @@ function renderVenda(){
   document.getElementById('statWaitV').textContent = cWait;
   document.getElementById('statDoneV').textContent = cDone;
   document.getElementById('statEmailV').textContent = cEmail;
+  document.getElementById('statPendingEmailV').textContent = cPendingEmail;
 }
 
 /* ============ RASTREAR NO SSW (aba Retorno) ============ */
@@ -521,6 +534,30 @@ async function saveNewRecord(){
   }
 }
 
+/* ============ DISPARO MANUAL DO RESUMO DE E-MAILS ============ */
+async function dispararEmailPendentes(){
+  const btn = document.getElementById('sendEmailBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try{
+    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'enviarResumoManual' }) });
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error);
+    if(json.total > 0){
+      showToast(`E-mail(s) enviado(s) com ${json.total} nota(s) ✓`);
+      loadData('retorno');
+      loadData('venda');
+    } else {
+      showToast('Nenhuma nota pendente de envio no momento');
+    }
+  }catch(err){
+    showToast('Erro ao enviar: ' + err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '📧 Disparar e-mails pendentes';
+  }
+}
+
 /* ============ VERIFICAÇÃO EM LOTE (genérica p/ ambas as abas) ============ */
 async function verifyAllPending(tipo){
   const nrField = TIPOS[tipo].nrField;
@@ -552,6 +589,7 @@ async function verifyAllPending(tipo){
         fields['DETALHE SSW'] = json.situacao + ' — ' + json.detalhe;
         if(json.previsao) fields['PREVISÃO SSW'] = json.previsao;
         if(json.historico) fields['HISTORICO SSW'] = JSON.stringify(json.historico);
+        if(json.dataHora) fields['DATA ENTREGA SSW'] = json.dataHora;
         dataEntrega = json.dataHora || null;
         foundCount++;
       } else {
@@ -643,6 +681,7 @@ async function saveStatus(){
   if(status === 'Localizado' && previsao) fields['PREVISÃO SSW'] = previsao;
   if(currentDetalhe) fields['DETALHE SSW'] = currentDetalhe;
   if(currentHistorico) fields['HISTORICO SSW'] = JSON.stringify(currentHistorico);
+  if(currentDataEntrega) fields['DATA ENTREGA SSW'] = currentDataEntrega;
 
   try{
     const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'update', tipo: currentTipoModal, row: currentRow, fields, dataEntrega: currentDataEntrega }) });
