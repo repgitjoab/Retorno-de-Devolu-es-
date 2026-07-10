@@ -768,7 +768,7 @@ async function verifyAllPending(tipo){
     const rec = pendentes[i];
     btn.textContent = `Verificando ${i+1} de ${pendentes.length}...`;
     try{
-      const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'checkSSW', nr: rec[nrField] }) });
+      const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'checkSSW', nr: rec[nrField], tipo }) });
       const json = await res.json();
       if(!json.ok) continue;
 
@@ -834,7 +834,7 @@ async function autoCheckSSW(){
   btn.disabled = true;
 
   try{
-    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'checkSSW', nr }) });
+    const res = await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'checkSSW', nr, tipo: currentTipoModal }) });
     const json = await res.json();
     if(!json.ok) throw new Error(json.error);
 
