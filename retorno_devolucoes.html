@@ -76,6 +76,22 @@
   .badge.alert{ background:var(--danger-bg); color:var(--danger); }
   .badge.ok{ background:var(--ok-bg); color:var(--accent); }
   .badge.not-found{ background:var(--danger-bg); color:var(--danger); }
+  .badge.excluded{ background:rgba(154,163,178,0.12); color:var(--text-dim); }
+
+  .filterbar{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:0 0 16px;
+  }
+  .filterbar select, .filterbar input[type="date"]{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    padding:8px 10px; border-radius:7px; font-size:13px; font-family:var(--sans);
+  }
+  .filterbar label.check{
+    display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-dim); cursor:pointer;
+  }
+  .filterbar .spacer{ flex:1; }
+  .filterbar .selected-count{ font-size:13px; color:var(--text-dim); font-family:var(--mono); }
+  tr.row-excluded{ opacity:.45; }
+  .chk-col{ width:32px; text-align:center; }
 
   .actions{ display:flex; gap:6px; }
   .btn-sm{ border:1px solid var(--line); background:var(--panel-2); color:var(--text); font-size:12px; padding:6px 10px; border-radius:7px; cursor:pointer; font-family:var(--sans); display:flex; align-items:center; gap:5px; white-space:nowrap; }
@@ -151,10 +167,22 @@
     <div class="stat"><div class="label">📧 Aguardando envio de e-mail</div><div class="value" id="statPendingEmail">–</div></div>
   </div>
   <main>
+    <div class="filterbar">
+      <select id="filterVendedor" onchange="onFilterChange('retorno')"><option value="">Todos os vendedores</option></select>
+      <input type="date" id="filterDataDe" onchange="onFilterChange('retorno')" title="De">
+      <input type="date" id="filterDataAte" onchange="onFilterChange('retorno')" title="Até">
+      <label class="check"><input type="checkbox" id="filterShowExcluded" onchange="onFilterChange('retorno')"> Mostrar excluídas</label>
+      <button class="btn-sm" onclick="limparFiltros('retorno')">Limpar filtros</button>
+      <div class="spacer"></div>
+      <span class="selected-count" id="selectedCountRetorno">0 selecionadas</span>
+      <button class="btn-sm" onclick="marcarExcluidas('retorno')">🗑️ Marcar como excluídas</button>
+      <button class="btn-sm" onclick="restaurarExcluidas('retorno')">↩️ Restaurar</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="chk-col"><input type="checkbox" id="selectAllRetorno" onchange="toggleSelectAll('retorno', this.checked)"></th>
             <th>NF Venda</th><th>Nota Retorno</th><th>Data Retorno</th><th>Prazo SSW (5 dias)</th>
             <th>Previsão Chegada</th><th>DANFE</th><th>Status</th><th>Ações</th>
           </tr>
@@ -178,10 +206,24 @@
     <div class="stat"><div class="label">📧 Aguardando envio de e-mail</div><div class="value" id="statPendingEmailV">–</div></div>
   </div>
   <main>
+    <div class="filterbar">
+      <select id="filterVendedorV" onchange="onFilterChange('venda')"><option value="">Todos os vendedores</option></select>
+      <input type="date" id="filterDataDeV" onchange="onFilterChange('venda')" title="De">
+      <input type="date" id="filterDataAteV" onchange="onFilterChange('venda')" title="Até">
+      <label class="check"><input type="checkbox" id="filterShowExcludedV" onchange="onFilterChange('venda')"> Mostrar excluídas</label>
+      <button class="btn-sm" onclick="limparFiltros('venda')">Limpar filtros</button>
+      <div class="spacer"></div>
+      <span class="selected-count" id="selectedCountVenda">0 selecionadas</span>
+      <button class="btn-sm" onclick="marcarExcluidas('venda')">🗑️ Marcar como excluídas</button>
+      <button class="btn-sm" onclick="restaurarExcluidas('venda')">↩️ Restaurar</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Nº Nota</th><th>Vendedor</th><th>Cliente</th><th>Emissão</th><th>Status</th><th>Última verificação</th><th>Ações</th></tr>
+          <tr>
+            <th class="chk-col"><input type="checkbox" id="selectAllVenda" onchange="toggleSelectAll('venda', this.checked)"></th>
+            <th>Nº Nota</th><th>Vendedor</th><th>Cliente</th><th>Emissão</th><th>Status</th><th>Última verificação</th><th>Ações</th>
+          </tr>
         </thead>
         <tbody id="tbodyVenda"></tbody>
       </table>
@@ -197,6 +239,7 @@
   <div class="modal">
     <h2>Nova nota de retorno</h2>
     <div class="field"><label>NF de Venda</label><input type="text" id="f_nfVenda" placeholder="Ex: 101010"></div>
+    <div class="field"><label>Vendedor</label><input type="text" id="f_vendedor" placeholder="Nome do vendedor"></div>
     <div class="field"><label>Data da Venda</label><input type="date" id="f_dataVenda"></div>
     <div class="field"><label>Nota de Retorno</label><input type="text" id="f_notaRetorno" placeholder="Ex: 1271537"></div>
     <div class="field"><label>Data do Retorno</label><input type="date" id="f_dataRetorno"></div>
@@ -251,6 +294,13 @@ const TIPOS = {
 let records = { retorno: [], venda: [] };
 let currentTab = 'retorno';
 
+const DATE_FIELD = { retorno: 'DATA RETORNO', venda: 'Emissão' };
+let filters = {
+  retorno: { vendedor:'', dataDe:'', dataAte:'', showExcluded:false },
+  venda: { vendedor:'', dataDe:'', dataAte:'', showExcluded:false }
+};
+let selectedRows = { retorno: new Set(), venda: new Set() };
+
 /* ============ TABS ============ */
 function switchTab(tab){
   currentTab = tab;
@@ -295,10 +345,110 @@ async function loadData(tipo){
     const json = await res.json();
     if(!json.ok) throw new Error(json.error || 'Erro desconhecido');
     records[tipo] = json.data;
+    populateVendedorOptions(tipo);
     if(tipo === 'retorno') renderRetorno(); else renderVenda();
   }catch(err){
     showToast('Erro ao carregar planilha (' + tipo + '): ' + err.message);
   }
+}
+
+function populateVendedorOptions(tipo){
+  const select = document.getElementById(tipo === 'retorno' ? 'filterVendedor' : 'filterVendedorV');
+  const atual = select.value;
+  const nomes = Array.from(new Set(records[tipo].map(r => r['Vendedor']).filter(Boolean))).sort();
+  select.innerHTML = '<option value="">Todos os vendedores</option>' +
+    nomes.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  select.value = atual;
+}
+
+function onFilterChange(tipo){
+  if(tipo === 'retorno'){
+    filters.retorno.vendedor = document.getElementById('filterVendedor').value;
+    filters.retorno.dataDe = document.getElementById('filterDataDe').value;
+    filters.retorno.dataAte = document.getElementById('filterDataAte').value;
+    filters.retorno.showExcluded = document.getElementById('filterShowExcluded').checked;
+    renderRetorno();
+  } else {
+    filters.venda.vendedor = document.getElementById('filterVendedorV').value;
+    filters.venda.dataDe = document.getElementById('filterDataDeV').value;
+    filters.venda.dataAte = document.getElementById('filterDataAteV').value;
+    filters.venda.showExcluded = document.getElementById('filterShowExcludedV').checked;
+    renderVenda();
+  }
+}
+
+function limparFiltros(tipo){
+  if(tipo === 'retorno'){
+    document.getElementById('filterVendedor').value = '';
+    document.getElementById('filterDataDe').value = '';
+    document.getElementById('filterDataAte').value = '';
+    document.getElementById('filterShowExcluded').checked = false;
+  } else {
+    document.getElementById('filterVendedorV').value = '';
+    document.getElementById('filterDataDeV').value = '';
+    document.getElementById('filterDataAteV').value = '';
+    document.getElementById('filterShowExcludedV').checked = false;
+  }
+  onFilterChange(tipo);
+}
+
+function getFilteredList(tipo){
+  const f = filters[tipo];
+  const dateField = DATE_FIELD[tipo];
+  return records[tipo].filter(rec => {
+    const excluded = rec['IGNORAR RASTREIO'] === 'S';
+    if(excluded && !f.showExcluded) return false;
+    if(f.vendedor && (rec['Vendedor'] || '') !== f.vendedor) return false;
+    const dateVal = normalizeDate(rec[dateField]);
+    if(f.dataDe && (!dateVal || dateVal < f.dataDe)) return false;
+    if(f.dataAte && (!dateVal || dateVal > f.dataAte)) return false;
+    return true;
+  });
+}
+
+/* ============ SELEÇÃO E EXCLUSÃO ============ */
+function toggleRowSelect(tipo, row, checked){
+  if(checked) selectedRows[tipo].add(row); else selectedRows[tipo].delete(row);
+  updateSelectedCount(tipo);
+}
+
+function toggleSelectAll(tipo, checked){
+  const list = getFilteredList(tipo);
+  list.forEach(rec => {
+    if(checked) selectedRows[tipo].add(rec._row); else selectedRows[tipo].delete(rec._row);
+  });
+  if(tipo === 'retorno') renderRetorno(); else renderVenda();
+}
+
+function updateSelectedCount(tipo){
+  const el = document.getElementById(tipo === 'retorno' ? 'selectedCountRetorno' : 'selectedCountVenda');
+  el.textContent = selectedRows[tipo].size + ' selecionadas';
+}
+
+async function marcarExcluidas(tipo){
+  const rows = Array.from(selectedRows[tipo]);
+  if(rows.length === 0){ showToast('Nenhuma nota selecionada'); return; }
+  for(const row of rows){
+    try{
+      await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'update', tipo, row, fields: { 'IGNORAR RASTREIO': 'S' } }) });
+    }catch(err){ console.error(err); }
+  }
+  showToast(rows.length + ' nota(s) marcada(s) como excluída(s) ✓');
+  selectedRows[tipo].clear();
+  loadData(tipo);
+}
+
+async function restaurarExcluidas(tipo){
+  const rows = Array.from(selectedRows[tipo]);
+  if(rows.length === 0){ showToast('Nenhuma nota selecionada'); return; }
+  for(const row of rows){
+    try{
+      await fetch(WEB_APP_URL, { method:'POST', body: JSON.stringify({ action:'update', tipo, row, fields: { 'IGNORAR RASTREIO': '' } }) });
+    }catch(err){ console.error(err); }
+  }
+  showToast(rows.length + ' nota(s) restaurada(s) ✓');
+  selectedRows[tipo].clear();
+  loadData(tipo);
 }
 
 /* ============ HELPERS DE DATA (compartilhados) ============ */
@@ -355,6 +505,9 @@ function formatHistoricoTooltip(rec){
 
 /* ============ RENDER: RETORNO ============ */
 function computeState(rec){
+  if(rec['IGNORAR RASTREIO'] === 'S'){
+    return { key:'excluded', label:'🚫 Excluída do rastreio', dias: null };
+  }
   const dias = diffDays(rec['DATA RETORNO']);
   const status = rec['STATUS SSW'] || '';
   if(status === 'Localizado'){
@@ -372,7 +525,7 @@ function computeState(rec){
 }
 
 function renderRetorno(){
-  const list = records.retorno;
+  const list = getFilteredList('retorno');
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
   document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
@@ -381,12 +534,15 @@ function renderRetorno(){
 
   list.forEach(rec => {
     const state = computeState(rec);
-    if(state.key==='alert') cAlert++;
-    else if(state.key==='ok') cDone++;
-    else cWait++;
+    const excluded = state.key === 'excluded';
+    if(!excluded){
+      if(state.key==='alert') cAlert++;
+      else if(state.key==='ok') cDone++;
+      else cWait++;
 
-    if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
-      cPendingEmail++;
+      if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
+        cPendingEmail++;
+      }
     }
 
     const previsao = rec['PREVISÃO SSW'] || addDays(rec['DATA RETORNO'] || new Date().toISOString().slice(0,10), PRAZO_PADRAO_CHEGADA);
@@ -395,7 +551,9 @@ function renderRetorno(){
     const barColor = state.key==='alert' ? 'var(--danger)' : state.key==='ok' ? 'var(--accent)' : 'var(--warn)';
 
     const tr = document.createElement('tr');
+    if(excluded) tr.classList.add('row-excluded');
     tr.innerHTML = `
+      <td class="chk-col"><input type="checkbox" ${selectedRows.retorno.has(rec._row) ? 'checked' : ''} onchange="toggleRowSelect('retorno', ${rec._row}, this.checked)"></td>
       <td class="num">${escapeHtml(rec['NFs de Venda'] ?? '')}</td>
       <td class="num">${escapeHtml(rec['Nota de retorno'] ?? '')}</td>
       <td>${fmtDate(rec['DATA RETORNO'])}</td>
@@ -426,10 +584,14 @@ function renderRetorno(){
   document.getElementById('statWait').textContent = cWait;
   document.getElementById('statDone').textContent = cDone;
   document.getElementById('statPendingEmail').textContent = cPendingEmail;
+  updateSelectedCount('retorno');
 }
 
 /* ============ RENDER: VENDA ============ */
 function computeStateVenda(rec){
+  if(rec['IGNORAR RASTREIO'] === 'S'){
+    return { key:'excluded', label:'🚫 Excluída do rastreio' };
+  }
   const status = rec['STATUS SSW'] || '';
   const detalhe = rec['DETALHE SSW'] || '';
   if(status === 'Localizado'){
@@ -445,7 +607,7 @@ function computeStateVenda(rec){
 }
 
 function renderVenda(){
-  const list = records.venda;
+  const list = getFilteredList('venda');
   const tbody = document.getElementById('tbodyVenda');
   tbody.innerHTML = '';
   document.getElementById('emptyStateVenda').style.display = list.length ? 'none' : 'block';
@@ -454,14 +616,19 @@ function renderVenda(){
 
   list.forEach(rec => {
     const state = computeStateVenda(rec);
-    if(state.key==='ok') cDone++; else cWait++;
-    if(rec['EMAIL ENVIADO'] === 'S') cEmail++;
-    if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
-      cPendingEmail++;
+    const excluded = state.key === 'excluded';
+    if(!excluded){
+      if(state.key==='ok') cDone++; else cWait++;
+      if(rec['EMAIL ENVIADO'] === 'S') cEmail++;
+      if(rec['STATUS SSW'] === 'Localizado' && /ENTREGUE/i.test(rec['DETALHE SSW'] || '') && rec['EMAIL ENVIADO'] !== 'S'){
+        cPendingEmail++;
+      }
     }
 
     const tr = document.createElement('tr');
+    if(excluded) tr.classList.add('row-excluded');
     tr.innerHTML = `
+      <td class="chk-col"><input type="checkbox" ${selectedRows.venda.has(rec._row) ? 'checked' : ''} onchange="toggleRowSelect('venda', ${rec._row}, this.checked)"></td>
       <td class="num">${escapeHtml(rec['Número'] ?? '')}</td>
       <td>${escapeHtml(rec['Vendedor'] ?? '–')}</td>
       <td>${escapeHtml(rec['Cliente'] ?? '–')}</td>
@@ -482,6 +649,7 @@ function renderVenda(){
   document.getElementById('statDoneV').textContent = cDone;
   document.getElementById('statEmailV').textContent = cEmail;
   document.getElementById('statPendingEmailV').textContent = cPendingEmail;
+  updateSelectedCount('venda');
 }
 
 /* ============ RASTREAR NO SSW (aba Retorno) ============ */
@@ -498,7 +666,7 @@ function trackSSW(danfe){
 
 /* ============ MODAL: NOVA NOTA DE RETORNO ============ */
 function openAddModal(){
-  ['f_nfVenda','f_dataVenda','f_notaRetorno','f_dataRetorno','f_danfe'].forEach(id => document.getElementById(id).value = '');
+  ['f_nfVenda','f_vendedor','f_dataVenda','f_notaRetorno','f_dataRetorno','f_danfe'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('addOverlay').classList.add('open');
 }
 function closeAddModal(){
@@ -507,6 +675,7 @@ function closeAddModal(){
 
 async function saveNewRecord(){
   const nfVenda = document.getElementById('f_nfVenda').value.trim();
+  const vendedor = document.getElementById('f_vendedor').value.trim();
   const dataVenda = document.getElementById('f_dataVenda').value;
   const notaRetorno = document.getElementById('f_notaRetorno').value.trim();
   const dataRetorno = document.getElementById('f_dataRetorno').value;
@@ -518,7 +687,7 @@ async function saveNewRecord(){
   }
 
   const fields = {
-    'NFs de Venda': nfVenda, 'DATA VENDA': dataVenda, 'Nota de retorno': notaRetorno,
+    'NFs de Venda': nfVenda, 'Vendedor': vendedor, 'DATA VENDA': dataVenda, 'Nota de retorno': notaRetorno,
     'DATA RETORNO': dataRetorno, 'DANFE': danfe, 'STATUS SSW': 'Não verificado'
   };
 
@@ -561,7 +730,7 @@ async function dispararEmailPendentes(){
 /* ============ VERIFICAÇÃO EM LOTE (genérica p/ ambas as abas) ============ */
 async function verifyAllPending(tipo){
   const nrField = TIPOS[tipo].nrField;
-  const pendentes = records[tipo].filter(rec => (rec['STATUS SSW'] || '') !== 'Localizado');
+  const pendentes = records[tipo].filter(rec => (rec['STATUS SSW'] || '') !== 'Localizado' && rec['IGNORAR RASTREIO'] !== 'S');
 
   if(pendentes.length === 0){
     showToast('Nenhuma nota pendente de verificação');
