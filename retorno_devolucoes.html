@@ -159,6 +159,10 @@
 
 <!-- ===================== SEÇÃO RETORNO ===================== -->
 <div id="sectionRetorno">
+  <div class="tabs" style="padding:0 0 4px;">
+    <button class="tab-btn active" id="subTabRetornoAtivas" onclick="switchView('retorno','ativas')">Notas Ativas</button>
+    <button class="tab-btn" id="subTabRetornoExcluidas" onclick="switchView('retorno','excluidas')">Notas Excluídas</button>
+  </div>
   <div class="stats">
     <div class="stat"><div class="label">Total de notas</div><div class="value" id="statTotal">–</div></div>
     <div class="stat alert"><div class="label">🚨 Alerta · ligar transportadora</div><div class="value" id="statAlert">–</div></div>
@@ -171,12 +175,11 @@
       <select id="filterVendedor" onchange="onFilterChange('retorno')"><option value="">Todos os vendedores</option></select>
       <input type="date" id="filterDataDe" onchange="onFilterChange('retorno')" title="De">
       <input type="date" id="filterDataAte" onchange="onFilterChange('retorno')" title="Até">
-      <label class="check"><input type="checkbox" id="filterShowExcluded" onchange="onFilterChange('retorno')"> Mostrar excluídas</label>
       <button class="btn-sm" onclick="limparFiltros('retorno')">Limpar filtros</button>
       <div class="spacer"></div>
       <span class="selected-count" id="selectedCountRetorno">0 selecionadas</span>
-      <button class="btn-sm" onclick="marcarExcluidas('retorno')">🗑️ Marcar como excluídas</button>
-      <button class="btn-sm" onclick="restaurarExcluidas('retorno')">↩️ Restaurar</button>
+      <button class="btn-sm" id="btnMarcarRetorno" onclick="marcarExcluidas('retorno')">🗑️ Marcar como excluídas</button>
+      <button class="btn-sm hidden" id="btnRestaurarRetorno" onclick="restaurarExcluidas('retorno')">↩️ Restaurar</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -198,6 +201,10 @@
 
 <!-- ===================== SEÇÃO VENDAS ===================== -->
 <div id="sectionVenda" class="hidden">
+  <div class="tabs" style="padding:0 0 4px;">
+    <button class="tab-btn active" id="subTabVendaAtivas" onclick="switchView('venda','ativas')">Notas Ativas</button>
+    <button class="tab-btn" id="subTabVendaExcluidas" onclick="switchView('venda','excluidas')">Notas Excluídas</button>
+  </div>
   <div class="stats">
     <div class="stat"><div class="label">Total de notas</div><div class="value" id="statTotalV">–</div></div>
     <div class="stat wait"><div class="label">⏳ Aguardando SSW</div><div class="value" id="statWaitV">–</div></div>
@@ -210,12 +217,11 @@
       <select id="filterVendedorV" onchange="onFilterChange('venda')"><option value="">Todos os vendedores</option></select>
       <input type="date" id="filterDataDeV" onchange="onFilterChange('venda')" title="De">
       <input type="date" id="filterDataAteV" onchange="onFilterChange('venda')" title="Até">
-      <label class="check"><input type="checkbox" id="filterShowExcludedV" onchange="onFilterChange('venda')"> Mostrar excluídas</label>
       <button class="btn-sm" onclick="limparFiltros('venda')">Limpar filtros</button>
       <div class="spacer"></div>
       <span class="selected-count" id="selectedCountVenda">0 selecionadas</span>
-      <button class="btn-sm" onclick="marcarExcluidas('venda')">🗑️ Marcar como excluídas</button>
-      <button class="btn-sm" onclick="restaurarExcluidas('venda')">↩️ Restaurar</button>
+      <button class="btn-sm" id="btnMarcarVenda" onclick="marcarExcluidas('venda')">🗑️ Marcar como excluídas</button>
+      <button class="btn-sm hidden" id="btnRestaurarVenda" onclick="restaurarExcluidas('venda')">↩️ Restaurar</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -296,10 +302,30 @@ let currentTab = 'retorno';
 
 const DATE_FIELD = { retorno: 'DATA RETORNO', venda: 'Emissão' };
 let filters = {
-  retorno: { vendedor:'', dataDe:'', dataAte:'', showExcluded:false },
-  venda: { vendedor:'', dataDe:'', dataAte:'', showExcluded:false }
+  retorno: { vendedor:'', dataDe:'', dataAte:'' },
+  venda: { vendedor:'', dataDe:'', dataAte:'' }
 };
+let viewMode = { retorno: 'ativas', venda: 'ativas' };
 let selectedRows = { retorno: new Set(), venda: new Set() };
+
+function switchView(tipo, view){
+  viewMode[tipo] = view;
+  selectedRows[tipo].clear();
+
+  if(tipo === 'retorno'){
+    document.getElementById('subTabRetornoAtivas').classList.toggle('active', view === 'ativas');
+    document.getElementById('subTabRetornoExcluidas').classList.toggle('active', view === 'excluidas');
+    document.getElementById('btnMarcarRetorno').classList.toggle('hidden', view !== 'ativas');
+    document.getElementById('btnRestaurarRetorno').classList.toggle('hidden', view !== 'excluidas');
+    renderRetorno();
+  } else {
+    document.getElementById('subTabVendaAtivas').classList.toggle('active', view === 'ativas');
+    document.getElementById('subTabVendaExcluidas').classList.toggle('active', view === 'excluidas');
+    document.getElementById('btnMarcarVenda').classList.toggle('hidden', view !== 'ativas');
+    document.getElementById('btnRestaurarVenda').classList.toggle('hidden', view !== 'excluidas');
+    renderVenda();
+  }
+}
 
 /* ============ TABS ============ */
 function switchTab(tab){
@@ -366,13 +392,11 @@ function onFilterChange(tipo){
     filters.retorno.vendedor = document.getElementById('filterVendedor').value;
     filters.retorno.dataDe = document.getElementById('filterDataDe').value;
     filters.retorno.dataAte = document.getElementById('filterDataAte').value;
-    filters.retorno.showExcluded = document.getElementById('filterShowExcluded').checked;
     renderRetorno();
   } else {
     filters.venda.vendedor = document.getElementById('filterVendedorV').value;
     filters.venda.dataDe = document.getElementById('filterDataDeV').value;
     filters.venda.dataAte = document.getElementById('filterDataAteV').value;
-    filters.venda.showExcluded = document.getElementById('filterShowExcludedV').checked;
     renderVenda();
   }
 }
@@ -382,12 +406,10 @@ function limparFiltros(tipo){
     document.getElementById('filterVendedor').value = '';
     document.getElementById('filterDataDe').value = '';
     document.getElementById('filterDataAte').value = '';
-    document.getElementById('filterShowExcluded').checked = false;
   } else {
     document.getElementById('filterVendedorV').value = '';
     document.getElementById('filterDataDeV').value = '';
     document.getElementById('filterDataAteV').value = '';
-    document.getElementById('filterShowExcludedV').checked = false;
   }
   onFilterChange(tipo);
 }
@@ -397,7 +419,8 @@ function getFilteredList(tipo){
   const dateField = DATE_FIELD[tipo];
   return records[tipo].filter(rec => {
     const excluded = rec['IGNORAR RASTREIO'] === 'S';
-    if(excluded && !f.showExcluded) return false;
+    if(viewMode[tipo] === 'ativas' && excluded) return false;
+    if(viewMode[tipo] === 'excluidas' && !excluded) return false;
     if(f.vendedor && (rec['Vendedor'] || '') !== f.vendedor) return false;
     const dateVal = normalizeDate(rec[dateField]);
     if(f.dataDe && (!dateVal || dateVal < f.dataDe)) return false;
